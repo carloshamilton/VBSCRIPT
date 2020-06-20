@@ -187,8 +187,7 @@
 						NegOffset = VBNull
 						
 						
-						msgbox(strHoraGMT & " " & strDiaMesAno )
-						msgbox(respDateTime) 
+
 						
 						
 						
