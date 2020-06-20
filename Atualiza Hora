@@ -4,7 +4,7 @@
 ' CopyLeft - Carlos Hamilton
 ' For Windows 10 OS
 ' *********************************************************************************************************************************
-
+' Comentários a direita ------>>
 
     Dim timeServers, InvariantInfo, servidor, oStatus
 	Dim Length_timeServers, Length_InvariantInfo
@@ -203,11 +203,11 @@
 						
 						On error resume next
 						
-						'GetTimeZoneOffset()
+						GetTimeZoneOffset()
 					
-						'dtmNewDateTime = (strAno & strMes & strDia & strHor & "." & "000000" & sOffset)								'CIM_DATETIME
+						dtmNewDateTime = (strAno & strMes & strDia & strHor & "." & "000000" & sOffset)								'CIM_DATETIME
 																																	'yyyymmddHHMMSS.mmmmmmsUUU
-						'AtualizaHora(dtmNewDateTime)																				'https://docs.microsoft.com/en-us/windows/win32/wmisdk/cim-datetime
+						AtualizaHora(dtmNewDateTime)																				'https://docs.microsoft.com/en-us/windows/win32/wmisdk/cim-datetime
 
 						if (Err.Number <> ERROR_SUCCESS) then
 						 msgbox("0x" & CSTR(Hex(Err.Number)) & " " & Err.Description & " " & Err.Source)
