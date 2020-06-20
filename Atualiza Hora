@@ -1,0 +1,382 @@
+' *********************************************************************************************************************************
+' ATUALIZA A HORA PELA INTERNET VERSÃO 2.0 - 17/06/2020
+'
+' CopyLeft - Carlos Hamilton
+' For Windows 10 OS
+' *********************************************************************************************************************************
+
+
+    Dim timeServers, InvariantInfo, servidor, oStatus
+	Dim Length_timeServers, Length_InvariantInfo
+	Dim resposta, respDateTime	
+	Dim objShell, WshShell, http
+	Dim infor, strHoraGMT, strDiaMesAno
+	Dim strDia, strMes, strAno, strHor, strGMT
+	Dim oRE, oMatches, oMatch
+	Dim tipo, intSet
+	Dim dtmNewDateTime
+	Dim HRESULT, oSvc
+	Dim Offset, iOffset, sOffset, NegOffset
+
+	timeServers = Array(_
+			"http://pcdsh01.on.br/",_
+			"https://www.usno.navy.mil/",_
+			"https://www.pool.ntp.org/scores/192.96.202.120",_
+			"https://www.pool.ntp.org/scores/188.165.236.162",_
+			"https://www.pool.ntp.org/scores/217.144.138.234",_
+			"https://tycho.usno.navy.mil/simpletime.html",_
+			"https://tycho.usno.navy.mil/cgi-bin/timer.pl",_			
+			"https://www.timeanddate.com/",_						
+			"https://time.is/pt_br/UTC",_
+			"https://everytimezone.com/",_
+			"https://greenwichmeantime.com/",_					
+			"https://www.timeanddate.com/",_						
+			"https://time.is/pt_br/UTC",_
+			"https://www.nhc.noaa.gov/aboututc.shtml",_
+			"https://greenwichmeantime.com/time-zone/south-america/brazil/",_
+			"https://greenwichmeantime.com/time-zone/usa/time-zones/" _
+			)
+																																		'Não existe a função InvariantInfo no VBScript
+																																		'Fiz um loop simples p retonar o mês do ano em numero
+	InvariantInfo = Array(_													
+			"Jan",_
+			"Feb",_
+			"Mar",_
+			"Apr",_
+			"May",_
+			"Jun",_
+			"Jul",_
+			"Aug",_
+			"Sep",_
+			"Oct",_
+			"Nov",_
+			"Dec" _
+			)
+	
+
+	Length_timeServers = UBound(timeServers)
+	Length_InvariantInfo = UBound(InvariantInfo)		
+
+	Set objShell = CreateObject("Shell.Application")
+	Set WshShell = WScript.CreateObject("WScript.Shell") 
+	Set http = CreateObject("microsoft.xmlhttp")
+	Set oRE = CreateObject("vbscript.regexp")
+
+	'intGMTOffset = GetTimeZoneOffset()																									'##########	List of UTC time offsets 	#######################################
+																																		'	https://en.wikipedia.org/wiki/List_of_UTC_time_offsets
+																																		'##########	IETF RFC 1123 Pattern		####################################################
+																																		'	https://www.ietf.org/rfc/rfc1123.txt
+																																		'	Padrão universal de data/hora completa.
+																																		'	Exemplo:
+																																		' 		dddd, d. MMMM yyyy GMT
+																																		' 		Sat, 13 Apr 2019 02:16:37 GMT
+																																		'
+																																		'             
+	Public Const HoraGMT = "([\d]+[\:])([\d]+[\:])([\d]+[\s])(([a-z,A-Z]{1,3})|[0-9]+[0-9])"											' procura por HH:MM:SS e GMT
+																																		' 02:16:37 GMT 
+																			
+																	             
+	Public Const DiaMesAno = "([\d]+[\s])([a-z,A-Z]{1,3})[\s]+([\d]+[\d])"																' procura por DD MMM AAAA	
+																																		' 13 Apr 2019			 
+
+
+	Public Const SE_SYSTEMTIME_NAME = "SeSystemtimePrivilege"
+	Public Const SE_PRIVILEGE_ENABLED_BY_DEFAULT = &H1&
+	Public Const SE_PRIVILEGE_ENABLED = &H2&
+	Public Const SE_PRIVILEGE_USED_FOR_ACCESS = &H80000000&
+	Public Const ERROR_SUCCESS = &0&
+	Public Const wbemPrivilegeSecurity = 8				
+																											'########## HTTP Status Codes ########## http.status ###########################
+																											'
+																											'	https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+																											'	http://www.restapitutorial.com/httpstatuscodes.html
+																											'
+																											'Os mais comuns retornos do status code
+																											'
+																											'Todos os 2xx Success	 	200 The request has succeeded
+																											'				202 Accepted
+																											'
+																											'Todos os 4xx Client Error
+																											'				400 	Bad Request
+																											'				401 	Unauthorized
+																											'				403 	Forbidden
+																											'				404 	Not Found
+																											'				405 	Method Not Allowed
+																											'				406 	Not Acceptable
+																											'				407 	Proxy Authentication Required
+																											'				408		Request Timeout
+																											'Todos os 5xx Server Error	
+																											'				500 	Internal Server Error
+																											'				503 	Service Unavailable
+																											'				504 	Gateway Timeout
+																											'				12007	Server name or address could not be resolved
+																											'
+																											'###############################################################################
+																											'
+																											'				1xx: 	Informational - Request received, continuing process
+																											'				2xx: 	Success	- The action was successfully received, understood, and accepted
+																											'				3xx: 	Redirection - Further action must be taken in order to complete the request
+																											'				4xx: 	Client Error - The request contains bad syntax or cannot be fulfilled
+																											'				5xx: 	Server Error - The server failed to fulfill an apparently valid request											
+																											'
+																											'########## ReadyState Codes ##########  readyState (XMLHttpRequest.readyState)
+																											'	
+																											'
+																											'
+																											'
+																											' 				Variant readyState. The property is read-only.
+																											'				It represents the state of the request as an
+																											'				I4 (4-byte integer).
+																											'
+																											' 				The following values are defined.
+																											'
+																											' 				0	(UNSENT/UNINITIALIZED)		Um cliente foi criado. 
+																											' 												Mas o método open()  não foi chamado ainda.
+																											' 				1 	(LOADING/OPENED)			O método open() foi chamado.
+																											' 												mas o método send() não foi chamado.
+																											' 				2 	(LOADED/HEADERS_RECEIVED) 	o método send() foi chamado e os 
+																											' 												mas os cabeçalhos e status ainda não estão disponíveis .
+																											'				3 	(INTERACTIVE/LOADING)		Alguns dados parciais foram recebidos, responseBody e responseText contem dados parciais.
+																											'												Com este estado, obter resultados retornará um erro, pois os cabeçalhos de status e de resposta, não estão totalmente disponíveis   
+																											'				4	 (COMPLETED/DONE)			Operação concluída. Todos os dados foram recebidos e os dados completos estão disponíveis
+																											'												nas propriedades responseBody e responseText.
+																											'
+																											' ################################################################################ 
+	For I = 0 to Length_timeServers - 1
+
+	 	 servidor = timeServers(I) & now()
+		 http.open "GET",servidor,false
+    	 http.send
+		 oStatus = http.Readystate
+		 resposta = http.status
+
+			WScript.Sleep 1000 
+
+		if (TRIM(CLng(oStatus)) = 4) Then
+				
+				WScript.Sleep 1000 				
+
+			if ((resposta >=200) AND (resposta <=226)) OR ((resposta >=400) AND (resposta <=405)) then
+			 	respDateTime = http.getResponseHeader("Date")
+
+					WScript.Sleep 1000 
+
+				if Len(respDateTime) >= 28 then
+
+					 strHoraGMT = Separa(HoraGMT, respDateTime)
+					 strDiaMesAno = Separa(DiaMesAno, respDateTime)
+
+						strHor = TRIM(Left(TRIM(strHoraGMT),2) & Mid(TRIM(strHoraGMT), 4, 2) & Mid(TRIM(strHoraGMT), 7, 2))
+						strGMT = TRIM(Right(TRIM(strHoraGMT),4))
+						strDia = TRIM(Left(TRIM(strDiaMesAno),2))
+						strMes = TRIM(Mid(TRIM(strDiaMesAno), 4, 3))
+						strAno = TRIM(Right(TRIM(strDiaMesAno),4))
+
+							For J = 0 to Length_InvariantInfo - 1
+								if strMes = InvariantInfo(J) then
+								 if (J >= 0) AND (J <10) then
+								  strMes = "0" & CSTR(J+1)
+						 		  exit for
+								 else
+								  strMes = CSTR(J+1)
+								  exit for
+								 end if
+								end if
+							Next
+
+						NegOffset = VBNull
+						
+						
+						msgbox(strHoraGMT & " " & strDiaMesAno )
+						msgbox(respDateTime) 
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						
+						On error resume next
+						
+						'GetTimeZoneOffset()
+					
+						'dtmNewDateTime = (strAno & strMes & strDia & strHor & "." & "000000" & sOffset)								'CIM_DATETIME
+																																	'yyyymmddHHMMSS.mmmmmmsUUU
+						'AtualizaHora(dtmNewDateTime)																				'https://docs.microsoft.com/en-us/windows/win32/wmisdk/cim-datetime
+
+						if (Err.Number <> ERROR_SUCCESS) then
+						 msgbox("0x" & CSTR(Hex(Err.Number)) & " " & Err.Description & " " & Err.Source)
+						 Err.Clear
+						End If
+
+						On Error Goto 0
+
+	exit for						
+										
+				end if
+			else
+				 	if ((resposta > 500) AND (resposta < 600) OR (resposta = 12007)) then											'ERRO DO SERVIDOR
+				 		respDateTime = http.getResponseHeader("Date")
+				  		msgbox("Erro de servidor:" & resposta & VBCRLF & Err.Description & CSTR(timeServers(I)))
+						WScript.Sleep 3000 
+						Limpa()
+				 	end if
+			end if
+		
+
+		end if
+	Next
+
+	Function Separa(infor, alvo)
+
+				oRE.Pattern = infor	
+				oRE.Global = True
+				Set oMatches = oRE.Execute(alvo)
+				Set oMatch = oMatches(0)
+
+					For Each oMatch In oMatches
+					 if oMatches.Count > 0 Then
+					  	Separa = oMatches(0)
+					 end if
+					Next
+	End Function
+
+	Function GetTimeZoneOffset()
+
+				Const sComputer = "."
+
+				Dim oWmiService : Set oWmiService = GetObject("winmgmts:{impersonationLevel=impersonate}!\\" & sComputer & "\root\cimv2")
+
+				Set cItems = oWmiService.ExecQuery("SELECT * FROM Win32_ComputerSystem")
+			   		For Each oItem In cItems
+	 			 		GetTimeZoneOffset = oItem.CurrentTimeZone																	' -180 --> 'UTC-3 (sao paulo - brazil)
+						iOffset = GetTimeZoneOffset / 60																			' /60  --> -180/60 = -3
+					
+							if (iOffset >= 0) then
+							sOffset = CSTR(iOffset)
+								else
+									sOffset = CSTR((iOffset*-1))
+									NegOffset = vbTrue
+							end if
+						
+							if NegOffset = vbTrue then
+								if Len(sOffset) = 1 then
+								sOffset = "-00" & sOffset
+									Elseif Len(sOffset) = 2 then
+									sOffset = "-0" & sOffset
+								end if
+							else
+								if Len(sOffset) = 1 then
+								sOffset = "00" & sOffset
+									Elseif Len(sOffset) = 2 then
+									sOffset = "0" & sOffset
+								end if
+							end if
+			
+						
+        			  	Exit For																									
+						
+    				Next
+	End Function
+
+
+	Function AtualizaHora(atual)																									'Erros 
+																																	'wbemErrAccessDenied - 2147749891 (0x80041003) - Current user does not have permission to view instances of the specified class.
+																																	'wbemErrFailed - 2147749889 (0x80041001) - Unspecified error occurred.
+																																	'wbemErrInvalidClass - 2147749904 (0x80041010) - Specified class is not valid.
+																																	'wbemErrInvalidParameter - 2147749896 (0x80041008) - A specified parameter is not valid.
+																																	'wbemErrOutOfMemory - 2147749894 (0x80041006) - Not enough memory to complete the operation.
+																																	
+																																	
+		strComputer = "."
+
+		Set objWMIService = GetObject("winmgmts:{impersonationLevel=impersonate, " & "(Systemtime)}!\\" & strComputer & "\root\cimv2")
+		 objWMIService.Security_.Privileges.AddAsString "SeSystemTimePrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeSecurityPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeTcbPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeTakeOwnershipPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeEnableDelegationPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeChangeNotifyPrivilege", True
+		 
+		 objWMIService.Security_.Privileges.AddAsString "SeCreateTokenPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeAssignPrimaryTokenPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeTcbPrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeSystemProfilePrivilege", True
+		 objWMIService.Security_.Privileges.AddAsString "SeEnableDelegationPrivilege", True
+		 		 
+
+		Set objLocator = CreateObject("WbemScripting.SWbemLocator")
+		Set objService = objLocator.ConnectServer(".", "root\cimv2")
+		
+		For K = 1 To 27
+		objLocator.Security_.Privileges.Add(K)
+		Next
+				
+		Set colOSes = objWMIService.ExecQuery("SELECT * FROM Win32_OperatingSystem")
+
+		For Each objOS In colOSes
+				
+ 		HRESULT = objOS.SetDateTime(atual)																					'	HRESULT ou Err.Number
+																																	'	############# Retorno de valores do HRESULT	
+		'if 	(HRESULT = ERROR_SUCCESS) then																						'	0	ERROR_SUCCESS The operation completed successfully 
+		'Wscript.Echo "Atualizada a data e horário: " & dtmNewDateTime																'	2	The user does not have access to the requested information.
+		'else																														'	8	Unknown failure.
+		'msgbox("0x" & CSTR(Hex(Err.Number)) & Err.Description & Err.Source)														'	9	The user does not have adequate privileges to execute the method.
+		' err.clear
+		'end if 
+		
+		Next																														
+
+		
+		WScript.Sleep 5000 
+		Limpa()
+		
+	End function
+
+	Function Limpa()
+
+		cItems = vbNull
+		colOSes = vbNull
+		dtmNewDateTime = vbNull
+		http  = vbNull
+		infor = vbNull
+		InvariantInfo = vbNull
+		Length_InvariantInfo = vbNull
+		Length_timeServers = vbNull
+		objOS = vbNull
+		objShell = vbNull
+		objWMIService = vbNull
+		oItem = vbNull
+		oMatch = vbNull
+		oMatches = vbNull
+		oRE = vbNull
+		oStatus = vbNull
+		oStatus = vbNull
+		oWmiService = vbNull
+		respDateTime = vbNull
+		resposta  = vbNull
+		servidor = vbNull
+		strAno = vbNull
+		strComputer = vbNull 
+		strDia = vbNull
+		strDiaMesAno = vbNull
+		strGMT = vbNull
+		strHor = vbNull
+		strHoraGMT = vbNull
+		strMes = vbNull
+	    timeServers = vbNull
+		WshShell = vbNull
+		Offset = vbNull
+		iOffset = vbNull
+		sOffset = vbNull
+		NegOffset = vbNull
+
+	End Function
+	
+
+On Error GoTo 0
